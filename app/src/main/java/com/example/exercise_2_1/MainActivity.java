@@ -11,19 +11,29 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
+import android.database.sqlite.SQLiteDatabase;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.MediaController;
 import android.widget.Toast;
 import android.widget.VideoView;
 
+import com.example.exercise_2_1.Settings.SQLite_connection;
+import com.example.exercise_2_1.Settings.Transactions;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -34,7 +44,8 @@ public class MainActivity extends AppCompatActivity {
     private VideoView video;
     Button btn_save_sqlite, btn_take_video;
     static final int peticion_acceso_camara = 102;
-
+    String encodedVideo="";
+    SQLite_connection conexion;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,6 +60,25 @@ public class MainActivity extends AppCompatActivity {
                 permisos();
             }
         });
+
+        btn_save_sqlite.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SaveVideoSQLite();
+            }
+        });
+    }
+
+    private void SaveVideoSQLite() {
+
+        conexion = new SQLite_connection(this, Transactions.name_database,null,1);
+        SQLiteDatabase db = conexion.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(Transactions.columnVideo, encodedVideo);
+        db.insert(Transactions.tableVideo, null, values);
+        Toast.makeText(getApplicationContext(), "Registro ingresado en SQLite",Toast.LENGTH_LONG).show();
+
+        db.close();
     }
 
     private void permisos(){
@@ -91,7 +121,38 @@ public class MainActivity extends AppCompatActivity {
             Uri video_uri=data.getData();
             video.setVideoURI(video_uri);
             video.start();
-            Toast.makeText(getApplicationContext(), "Se ha guardado con exito", Toast.LENGTH_LONG).show();
+
+            int targetBitRate = 2 * 1024 * 1024;
+            int targetFrameRate = 30;
+
+            InputStream inputStream = null;
+
+            try {
+                inputStream = getContentResolver().openInputStream(video_uri);
+            } catch (FileNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+            retriever.setDataSource(this, video_uri);
+
+            byte[] buffer = new byte[1024];
+            int len;
+            try {
+                while ((len = inputStream.read(buffer)) != -1) {
+                    byteArrayOutputStream.write(buffer, 0, len);
+                }
+            }catch (Exception e){
+
+            }
+
+            byte[] videoBytes=byteArrayOutputStream.toByteArray();
+            encodedVideo = Base64.encodeToString(videoBytes, Base64.DEFAULT);
+
+
+
+            Toast.makeText(getApplicationContext(), "Se ha guardado con exito en el Storage", Toast.LENGTH_LONG).show();
         }
     }
 }
